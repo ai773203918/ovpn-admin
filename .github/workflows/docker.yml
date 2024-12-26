@@ -75,7 +75,7 @@ jobs:  # 工作流作业
           context: .  # 构建上下文
           file: ./Dockerfile.openvpn  # 指定的Dockerfile
           # platforms: linux/amd64  # 构建的平台(测试构建,少一些快一点),多架构一般取决于使用的基础镜像支持架构
-          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
+          platforms: linux/amd64,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
           push: true  # 推送到仓库
           # load: true  # 加载到本地(多构建平台不支持;若其它也需调用镜像则必须加载,如打包导出)
           # 注意 | 后注释会有问题故放在这
@@ -95,7 +95,7 @@ jobs:  # 工作流作业
           context: .  # 构建上下文
           file: ./Dockerfile  # 指定的Dockerfile
           # platforms: linux/amd64  # 构建的平台(测试构建,少一些快一点),多架构一般取决于使用的基础镜像支持架构
-          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
+          platforms: linux/amd64,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
           push: true  # 推送到仓库
           # load: true  # 加载到本地(多构建平台不支持;若其它也需调用镜像则必须加载,如打包导出)
           # 注意 | 后注释会有问题故放在这
