@@ -1,0 +1,21 @@
+name: 自动同步上游  # 工作流名称 SyncFork
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 指定定时任务的时间，这里是每天的0点0分(北京时间+8)
+  workflow_dispatch:  # 手动触发
+jobs:
+  sync:
+    runs-on: ubuntu-latest  # 运行环境
+    steps:  # 步骤列表
+      - name: 同步上游仓库
+        uses: tgymnich/fork-sync@v2.0
+        with:
+          token: ${{ secrets.MY_GITHUB_TOKEN }}  # GitHub 个人访问令牌(自己添加到Secrets and variables)
+          # owner: 918178  # 源仓库所有者(默认 当前上游)
+          # base: master  # 源仓库分支(默认 master)
+          # repo: ai773203918  # 目标仓库所有者(默认 当前账户)
+          # head: master  # 目标分支(当前仓库分支,默认 master)
+          # merge_method: merge  # 合并方式:merge(默认 合并),rebase(变基),squash(压缩)
+          # pr_title: "从上游同步"  # 创建拉取请求的标题
+          # pr_message: "从上游同步_内容"  # 创建拉取请求的消息
+          # ignore_fail: false  # 忽略异常
