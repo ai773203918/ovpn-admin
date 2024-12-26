@@ -63,12 +63,13 @@ jobs:  # 工作流作业
         # 设置引用的Dockerfile路径
         # 设置构建的镜像标签:版本号+latest(注意tag全小写)
         run: |
-          echo "DOCKERFILE_PATH=Dockerfile.openvpn" >> $GITHUB_ENV
-          echo "TAG=918178/ovpn-admin:openvpn-${{ env.TAG_NAME }}" >> $GITHUB_ENV
-          echo "TAG_LATEST=918178/ovpn-admin:openvpn-latest" >> $GITHUB_ENV
+          echo "TAG_OPENVPN=918178/ovpn-admin:openvpn-${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          echo "TAG_OPENVPN_LATEST=918178/ovpn-admin:openvpn-latest" >> $GITHUB_ENV
+          echo "TAG_ADMIN=918178/ovpn-admin:admin-${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          echo "TAG_ADMIN_LATEST=918178/ovpn-admin:admin-latest" >> $GITHUB_ENV
 
       # 构建并推送镜像
-      - name: 编译并推送 ovpn-admin镜像  # 步骤名称
+      - name: 编译并推送 ovpn-admin:openvpn 镜像  # 步骤名称
         uses: docker/build-push-action@v5  # 引用流程
         with:  # 参数
           context: .  # 构建上下文
@@ -84,19 +85,25 @@ jobs:  # 工作流作业
           # 注意 | 后注释会有问题故放在这
           # 推送的镜像标签(版本标签+latest)
           tags: |
-            ${{ env.TAG }}
-            ${{ env.TAG_LATEST }}
+            ${{ env.TAG_OPENVPN }}
+            ${{ env.TAG_OPENVPN_LATEST }}
 
-      # # 镜像打包为tar包
-      # - name: 镜像打包为tar包  # 步骤名称
-      #   # 注意 | 后注释会有问题故放在这
-      #   # 运行的具体指令,每行指令依次运行
-      #   run: |
-      #     docker save -o ovpn-admin.tar 918178/ovpn-admin:latest
-
-      # # 将构建好的镜像导出为tar包
-      # - name: Archive 导出内部文件  # 步骤名称
-      #   uses: actions/upload-artifact@v4  # 引用流程
-      #   with:  # 参数
-      #     name: ovpn-admin.tar  # 导出的文件名称
-      #     path: ovpn-admin.tar  # 导出的文件路径
+      # 构建并推送镜像
+      - name: 编译并推送 ovpn-admin:admin 镜像  # 步骤名称
+        uses: docker/build-push-action@v5  # 引用流程
+        with:  # 参数
+          context: .  # 构建上下文
+          file: ./Dockerfile  # 指定的Dockerfile
+          platforms: linux/amd64  # 构建的平台(测试构建,少一些快一点),多架构一般取决于使用的基础镜像支持架构
+          # platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
+          push: true  # 推送到仓库
+          # load: true  # 加载到本地(多构建平台不支持;若其它也需调用镜像则必须加载,如打包导出)
+          # 注意 | 后注释会有问题故放在这
+          # 传递构建参数(覆盖 ARG ovpn-admin_VERSION=3.5.0 配置参数)
+          # build-args: |
+          #   ovpn-admin_VERSION=${{ env.TAG_NAME }}
+          # 注意 | 后注释会有问题故放在这
+          # 推送的镜像标签(版本标签+latest)
+          tags: |
+            ${{ env.TAG_ADMIN }}
+            ${{ env.TAG_ADMIN_LATEST }}
