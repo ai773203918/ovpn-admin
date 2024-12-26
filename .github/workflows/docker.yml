@@ -1,0 +1,102 @@
+name: 构建 Docker镜像  # Actions名称，docker
+
+on:  # 定义触发工作流的事件
+  release:  # 当发布新的GitHub release时触发
+    types: [ published ]  # 当发布新的GitHub release时触发
+  workflow_dispatch:  # 手动触发
+    inputs:  # 输入的参数
+      tag:  # 输入的标签
+        description: '构建的版本号'  # 手动触发时输入的标签描述
+        required: true  # 必须输入
+        default: 'test'  # 默认标签为'test'
+  workflow_run:
+    workflows: ["GoReleaser Workflow"]  # 指定工作流完成时触发
+    types: [completed]  # 当工作流完成时触发
+
+permissions:  # 工作流权限
+  contents: read  # 工作流需要读取仓库内容的权限
+
+# 可以有多个工作流,多个工作流依次运行
+# 一个工作流运行由一个或多个作业组成，这些作业可以顺序或并行运行
+jobs:  # 工作流作业
+  image:  # 作业名称,唯一标识
+    name: 从 Dockerfile 构建映像  # 工作流作业名称
+    runs-on: ubuntu-latest  # 在最新的Ubuntu环境中运行
+    steps:  # 工作流步骤
+
+      # 检出代码
+      - name: 检查代码是否在工作目录  # 步骤名称
+        uses: actions/checkout@v4  # 引用流程
+        # with:  # 参数
+        #   fetch-depth: '0'  # 获取深度，0表示获取所有提交记录
+
+      # 设置QEMU，用于构建多平台镜像
+      - name: 设置 QEMU  # 步骤名称
+        uses: docker/setup-qemu-action@v3  # 引用流程
+
+      # 设置Docker Buildx，用于构建和推送多平台镜像
+      - name: 设置 Docker Buildx  # 步骤名称
+        uses: docker/setup-buildx-action@v3  # 引用流程
+
+      # 获取镜像标签名称
+      - name: 获取 Image Tag  # 步骤名称
+        # 注意 | 后注释会有问题故放在这
+        # 如果没有提供标签，则使用GitHub Ref作为标签
+        # 如果提供了标签，则使用提供的标签
+        run: |
+          if [ x${{ github.event.inputs.tag }} == x"" ]; then
+            echo "TAG_NAME=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          else
+            echo "TAG_NAME=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+          fi
+
+      # 登录到Docker Hub
+      - name: 登录 DockerHub  # 步骤名称
+        uses: docker/login-action@v3  # 引用流程
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}  # Docker Hub用户名(需在secrets中配置)
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}  # Docker Hub密码(需在secrets中配置)
+
+      # 准备镜像标签
+      - name: 设置 Image Tags  # 步骤名称
+        # 注意 | 后注释会有问题故放在这
+        # 设置引用的Dockerfile路径
+        # 设置构建的镜像标签:版本号+latest(注意tag全小写)
+        run: |
+          echo "DOCKERFILE_PATH=Dockerfile.openvpn" >> $GITHUB_ENV
+          echo "TAG=918178/ovpn-admin:openvpn-${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          echo "TAG_LATEST=918178/ovpn-admin:openvpn-latest" >> $GITHUB_ENV
+
+      # 构建并推送镜像
+      - name: 编译并推送 ovpn-admin镜像  # 步骤名称
+        uses: docker/build-push-action@v5  # 引用流程
+        with:  # 参数
+          context: .  # 构建上下文
+          file: ./Dockerfile.openvpn  # 指定的Dockerfile
+          platforms: linux/amd64  # 构建的平台(测试构建,少一些快一点),多架构一般取决于使用的基础镜像支持架构
+          # platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
+          push: true  # 推送到仓库
+          # load: true  # 加载到本地(多构建平台不支持;若其它也需调用镜像则必须加载,如打包导出)
+          # 注意 | 后注释会有问题故放在这
+          # 传递构建参数(覆盖 ARG ovpn-admin_VERSION=3.5.0 配置参数)
+          # build-args: |
+          #   ovpn-admin_VERSION=${{ env.TAG_NAME }}
+          # 注意 | 后注释会有问题故放在这
+          # 推送的镜像标签(版本标签+latest)
+          tags: |
+            ${{ env.TAG }}
+            ${{ env.TAG_LATEST }}
+
+      # # 镜像打包为tar包
+      # - name: 镜像打包为tar包  # 步骤名称
+      #   # 注意 | 后注释会有问题故放在这
+      #   # 运行的具体指令,每行指令依次运行
+      #   run: |
+      #     docker save -o ovpn-admin.tar 918178/ovpn-admin:latest
+
+      # # 将构建好的镜像导出为tar包
+      # - name: Archive 导出内部文件  # 步骤名称
+      #   uses: actions/upload-artifact@v4  # 引用流程
+      #   with:  # 参数
+      #     name: ovpn-admin.tar  # 导出的文件名称
+      #     path: ovpn-admin.tar  # 导出的文件路径
