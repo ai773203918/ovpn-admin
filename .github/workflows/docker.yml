@@ -21,14 +21,14 @@ jobs:  # 定义工作流中的作业
       matrix:  # 矩阵策略，用于并行执行多个任务
         image-type: [openvpn, admin]  # 定义两种镜像类型
         include:  # 为每种类型指定特定参数
-          - image-type: openvpn  # 第一种镜像类型
-            dockerfile: Dockerfile.openvpn  # 使用的Dockerfile路径
-            version_prefix: ''  # 版本标签前缀（空字符串）
-            latest_prefix: ''  # 最新标签前缀（空字符串）
-          - image-type: admin  # 第二种镜像类型
-            dockerfile: Dockerfile.ovpn-admin  # 使用的Dockerfile路径
-            version_prefix: 'admin-'  # 版本标签前缀（添加admin-）
-            latest_prefix: 'admin-'  # 最新标签前缀（添加admin-）
+          - image-type: openvpn
+            dockerfile: Dockerfile.openvpn
+            version_prefix: ''
+            latest_prefix: ''
+          - image-type: admin
+            dockerfile: Dockerfile.ovpn-admin
+            version_prefix: 'admin-'
+            latest_prefix: 'admin-'
     
     steps:  # 定义作业中的步骤
       # 步骤1：检出代码
