@@ -23,12 +23,12 @@ jobs:  # 定义工作流中的作业
         include:  # 为每种类型指定特定参数
           - image-type: openvpn  # 第一种镜像类型
             dockerfile: Dockerfile.openvpn  # 使用的Dockerfile路径
-            version-suffix: ''  # 版本标签后缀（空字符串）
-            latest-suffix: ''  # 最新标签后缀（空字符串）
+            version-prefix: ''  # 版本标签前缀（空字符串）
+            latest-prefix: ''  # 最新标签前缀（空字符串）
           - image-type: admin  # 第二种镜像类型
             dockerfile: Dockerfile.ovpn-admin  # 使用的Dockerfile路径
-            version-suffix: 'admin-'  # 版本标签前缀（添加admin-）
-            latest-suffix: 'admin-'  # 最新标签前缀（添加admin-）
+            version-prefix: 'admin-'  # 版本标签前缀（添加admin-）
+            latest-prefix: 'admin-'  # 最新标签前缀（添加admin-）
     
     steps:  # 定义作业中的步骤
       # 步骤1：检出代码
@@ -51,7 +51,7 @@ jobs:  # 定义工作流中的作业
       - name: 获取 Image Tag  # 步骤名称
         run: |  # 执行Shell命令
           # 判断是否为手动触发且提供了tag参数
-          if [ x${{ github.event.inputs.tag }} == x"" ]; then
+          if [ x"${{ github.event.inputs.tag }}" == x"" ]; then
             # 如果是release触发，从Git引用中提取版本号
             echo "TAG_NAME=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
           else
@@ -71,10 +71,10 @@ jobs:  # 定义工作流中的作业
       # 步骤6：设置镜像标签
       - name: 设置 Image Tags  # 步骤名称
         run: |  # 执行Shell命令
-          # 设置版本标签：{username}/{repo}:{suffix}{version}
-          echo "TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version-suffix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
-          # 设置最新标签：{username}/{repo}:{suffix}latest
-          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest-suffix }}latest" >> $GITHUB_ENV
+          # 设置版本标签
+          echo "TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version-prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          # 设置最新标签
+          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest-prefix }}latest" >> $GITHUB_ENV
         # 作用：根据矩阵配置生成两种镜像标签，存储到环境变量中
 
       # 步骤7：打印构建信息（调试用）
@@ -95,7 +95,7 @@ jobs:  # 定义工作流中的作业
           context: .  # 构建上下文路径（当前目录）
           file: ./${{ matrix.dockerfile }}  # 指定Dockerfile路径（使用矩阵变量）
           # platforms: linux/amd64  # 构建平台（仅AMD64，构建速度快）
-          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7,linux/arm/v6  # 多平台构建（正式环境使用）
+          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v6  # 多平台构建（正式环境使用）
           push: true  # 推送到镜像仓库
           tags: |  # 要应用的标签列表
             ${{ env.TAG_VERSION }}  # 版本标签
