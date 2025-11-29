@@ -1,49 +1,44 @@
-name: 构建 Docker镜像  # Actions名称，docker
+name: 构建 Docker镜像
 
-on:  # 定义触发工作流的事件
-  release:  # 当发布新的GitHub release时触发
-    types: [ published ]  # 当发布新的GitHub release时触发
-  workflow_dispatch:  # 手动触发
-    inputs:  # 输入的参数
-      tag:  # 输入的标签
-        description: '构建的版本号'  # 手动触发时输入的标签描述
-        required: true  # 必须输入
-        default: 'test'  # 默认标签为'test'
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '构建的版本号'
+        required: true
+        default: 'test'
 
-permissions:  # 工作流权限
-  contents: read  # 工作流需要读取仓库内容的权限
+permissions:
+  contents: read
 
-# 可以有多个工作流,多个工作流依次运行
-# 一个工作流运行由一个或多个作业组成，这些作业可以顺序或并行运行
-jobs:  # 工作流作业
-  build-images:  # 作业名称,唯一标识
+jobs:
+  build-images:
     name: 构建镜像 ${{ matrix.image-type }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        image-type: [openvpn, admin]  # 定义两种镜像类型
+        image-type: [openvpn, admin]
         include:
           - image-type: openvpn
             dockerfile: Dockerfile.openvpn
-            tag-suffix: ''  # 默认后缀
+            version-tag: ''  # 版本标签前缀（空）
+            latest-tag: 'latest'  # 最新标签
           - image-type: admin
             dockerfile: Dockerfile.ovpn-admin
-            tag-suffix: '-admin'  # 添加admin后缀
+            version-tag: 'admin-'  # 版本标签前缀
+            latest-tag: 'admin-latest'  # 最新标签
     
     steps:
-      # 检出代码
-      - name: 检查代码是否在工作目录  # 步骤名称
-        uses: actions/checkout@v4  # 引用流程
-        # with:  # 参数
-        #   fetch-depth: '0'  # 获取深度，0表示获取所有提交记录
+      - name: 检查代码
+        uses: actions/checkout@v4
 
-      # 设置QEMU，用于构建多平台镜像
-      - name: 设置 QEMU  # 步骤名称
-        uses: docker/setup-qemu-action@v3  # 引用流程
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
 
-      # 设置Docker Buildx，用于构建和推送多平台镜像
-      - name: 设置 Docker Buildx  # 步骤名称
-        uses: docker/setup-buildx-action@v3  # 引用流程
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: 获取 Image Tag
         run: |
@@ -53,26 +48,31 @@ jobs:  # 工作流作业
             echo "TAG_NAME=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
           fi
 
-      # 登录到Docker Hub
-      - name: 登录 DockerHub  # 步骤名称
-        uses: docker/login-action@v3  # 引用流程
+      - name: 登录 DockerHub
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}  # Docker Hub用户名(需在secrets中配置)
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}  # Docker Hub密码(需在secrets中配置)
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: 设置 Image Tags
         run: |
-          echo "TAG=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.tag-prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
-          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.tag-prefix }}latest" >> $GITHUB_ENV
+          echo "TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version-tag }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest-tag }}" >> $GITHUB_ENV
+
+      - name: 打印构建信息
+        run: |
+          echo "构建类型: ${{ matrix.image-type }}"
+          echo "使用Dockerfile: ${{ matrix.dockerfile }}"
+          echo "版本标签: ${{ env.TAG_VERSION }}"
+          echo "最新标签: ${{ env.TAG_LATEST }}"
 
       - name: 编译并推送镜像
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./${{ matrix.dockerfile }}
-          platforms: linux/amd64  # 构建的平台(测试构建,少一些快一点),多架构一般取决于使用的基础镜像支持架构
-          # platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7  # 构建的平台(正式构建)
+          platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.TAG }}
+            ${{ env.TAG_VERSION }}
             ${{ env.TAG_LATEST }}
