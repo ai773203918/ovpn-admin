@@ -1,78 +1,103 @@
-name: 构建 Docker镜像
+name: 构建 Docker镜像  # Actions名称，用于在GitHub界面显示
 
-on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: '构建的版本号'
-        required: true
-        default: 'test'
+on:  # 定义触发工作流的事件
+  release:  # 当发布新的GitHub release时触发
+    types: [published]  # 仅在release发布时触发（非草稿、非预发布）
+  workflow_dispatch:  # 允许手动触发工作流
+    inputs:  # 手动触发时可输入的参数
+      tag:  # 参数名称
+        description: '构建的版本号'  # 参数描述
+        required: true  # 必须提供参数
+        default: 'test'  # 默认值
 
-permissions:
-  contents: read
+permissions:  # 工作流权限设置
+  contents: read  # 需要读取仓库内容的权限
 
-jobs:
-  build-images:
-    name: 构建镜像 ${{ matrix.image-type }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        image-type: [openvpn, admin]
-        include:
-          - image-type: openvpn
-            dockerfile: Dockerfile.openvpn
-            version-tag: ''  # 版本标签前缀（空）
-            latest-tag: 'latest'  # 最新标签
-          - image-type: admin
-            dockerfile: Dockerfile.ovpn-admin
-            version-tag: 'admin-'  # 版本标签前缀
-            latest-tag: 'admin-latest'  # 最新标签
+jobs:  # 定义工作流中的作业
+  build-images:  # 作业ID，唯一标识
+    name: 构建镜像 ${{ matrix.image-type }}  # 作业显示名称，使用矩阵变量
+    runs-on: ubuntu-latest  # 运行环境：最新版Ubuntu
+    strategy:  # 策略配置
+      matrix:  # 矩阵策略，用于并行执行多个任务
+        image-type: [openvpn, admin]  # 定义两种镜像类型
+        include:  # 为每种类型指定特定参数
+          - image-type: openvpn  # 第一种镜像类型
+            dockerfile: Dockerfile.openvpn  # 使用的Dockerfile路径
+            version-suffix: ''  # 版本标签后缀（空字符串）
+            latest-suffix: ''  # 最新标签后缀（空字符串）
+          - image-type: admin  # 第二种镜像类型
+            dockerfile: Dockerfile.ovpn-admin  # 使用的Dockerfile路径
+            version-suffix: 'admin-'  # 版本标签前缀（添加admin-）
+            latest-suffix: 'admin-'  # 最新标签前缀（添加admin-）
     
-    steps:
-      - name: 检查代码
-        uses: actions/checkout@v4
+    steps:  # 定义作业中的步骤
+      # 步骤1：检出代码
+      - name: 检出代码  # 步骤名称
+        uses: actions/checkout@v4  # 使用官方检出动作
+        # with:  # 可选参数
+        #   fetch-depth: '0'  # 获取所有历史记录（默认只获取最新提交）
 
-      - name: 设置 QEMU
-        uses: docker/setup-qemu-action@v3
+      # 步骤2：设置QEMU模拟器
+      - name: 设置 QEMU  # 步骤名称
+        uses: docker/setup-qemu-action@v3  # 使用官方QEMU设置动作
+        # 作用：支持构建多平台镜像（如ARM架构）
 
-      - name: 设置 Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # 步骤3：设置Docker Buildx
+      - name: 设置 Docker Buildx  # 步骤名称
+        uses: docker/setup-buildx-action@v3  # 使用官方Buildx设置动作
+        # 作用：增强Docker构建功能，支持多平台构建和缓存优化
 
-      - name: 获取 Image Tag
-        run: |
+      # 步骤4：获取镜像标签名称
+      - name: 获取 Image Tag  # 步骤名称
+        run: |  # 执行Shell命令
+          # 判断是否为手动触发且提供了tag参数
           if [ x${{ github.event.inputs.tag }} == x"" ]; then
+            # 如果是release触发，从Git引用中提取版本号
             echo "TAG_NAME=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
           else
+            # 如果是手动触发，使用输入的tag参数
             echo "TAG_NAME=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
           fi
+        # 作用：根据触发方式确定版本号，存储到环境变量TAG_NAME中
 
-      - name: 登录 DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      # 步骤5：登录Docker Hub
+      - name: 登录 DockerHub  # 步骤名称
+        uses: docker/login-action@v3  # 使用官方登录动作
+        with:  # 动作参数
+          username: ${{ secrets.DOCKERHUB_USERNAME }}  # Docker Hub用户名（从仓库secrets获取）
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}  # Docker Hub密码（从仓库secrets获取）
+        # 作用：认证Docker Hub，允许推送镜像
 
-      - name: 设置 Image Tags
-        run: |
-          echo "TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version-tag }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
-          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest-tag }}" >> $GITHUB_ENV
+      # 步骤6：设置镜像标签
+      - name: 设置 Image Tags  # 步骤名称
+        run: |  # 执行Shell命令
+          # 设置版本标签：{username}/{repo}:{suffix}{version}
+          echo "TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version-suffix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          # 设置最新标签：{username}/{repo}:{suffix}latest
+          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest-suffix }}latest" >> $GITHUB_ENV
+        # 作用：根据矩阵配置生成两种镜像标签，存储到环境变量中
 
-      - name: 打印构建信息
-        run: |
-          echo "构建类型: ${{ matrix.image-type }}"
-          echo "使用Dockerfile: ${{ matrix.dockerfile }}"
-          echo "版本标签: ${{ env.TAG_VERSION }}"
-          echo "最新标签: ${{ env.TAG_LATEST }}"
+      # 步骤7：打印构建信息（调试用）
+      - name: 打印构建信息  # 步骤名称
+        run: |  # 执行Shell命令
+          echo "======================================"  # 分隔线
+          echo "构建类型: ${{ matrix.image-type }}"  # 打印镜像类型
+          echo "使用Dockerfile: ${{ matrix.dockerfile }}"  # 打印Dockerfile路径
+          echo "版本标签: ${{ env.TAG_VERSION }}"  # 打印版本标签
+          echo "最新标签: ${{ env.TAG_LATEST }}"  # 打印最新标签
+          echo "======================================"  # 分隔线
+        # 作用：在日志中显示构建详情，便于调试和验证
 
-      - name: 编译并推送镜像
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./${{ matrix.dockerfile }}
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ env.TAG_VERSION }}
-            ${{ env.TAG_LATEST }}
+      # 步骤8：构建并推送镜像
+      - name: 编译并推送镜像  # 步骤名称
+        uses: docker/build-push-action@v5  # 使用官方构建推送动作
+        with:  # 动作参数
+          context: .  # 构建上下文路径（当前目录）
+          file: ./${{ matrix.dockerfile }}  # 指定Dockerfile路径（使用矩阵变量）
+          # platforms: linux/amd64  # 构建平台（仅AMD64，构建速度快）
+          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7,linux/arm/v6  # 多平台构建（正式环境使用）
+          push: true  # 推送到镜像仓库
+          tags: |  # 要应用的标签列表
+            ${{ env.TAG_VERSION }}  # 版本标签
+            ${{ env.TAG_LATEST }}  # 最新标签
+        # 作用：使用指定的Dockerfile构建镜像，并推送两个标签到Docker Hub
