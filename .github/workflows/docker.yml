@@ -12,6 +12,7 @@ on:  # 定义触发工作流的事件
 
 permissions:  # 工作流权限设置
   contents: read  # 需要读取仓库内容的权限
+  packages: write  # 需要写入GitHub Packages的权限
 
 jobs:  # 定义工作流中的作业
   build-images:  # 作业ID，唯一标识
@@ -64,40 +65,57 @@ jobs:  # 定义工作流中的作业
       - name: 登录 DockerHub  # 步骤名称
         uses: docker/login-action@v3  # 使用官方登录动作
         with:  # 动作参数
-          username: ${{ secrets.DOCKERHUB_USERNAME }}  # Docker Hub用户名（从仓库secrets获取）
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}  # Docker Hub密码（从仓库secrets获取）
+          username: ${{ secrets.DOCKERHUB_USERNAME }}  # Docker Hub用户名(需在secrets中配置)
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}  # Docker Hub密码(需在secrets中配置)
         # 作用：认证Docker Hub，允许推送镜像
 
-      # 步骤6：设置镜像标签
+      # 步骤6：登录GitHub Container Registry
+      - name: 登录 GitHub Container Registry  # 步骤名称
+        uses: docker/login-action@v3  # 使用官方登录动作
+        with:  # 动作参数
+          registry: ghcr.io  # GitHub Container Registry地址
+          username: ${{ github.actor }}  # GitHub用户名
+          password: ${{ secrets.GITHUB_TOKEN }}  # GitHub Token(无需配置,由GitHub提供)
+        # 作用：认证GitHub Container Registry，允许推送镜像
+
+      # 步骤7：设置镜像标签
       - name: 设置 Image Tags  # 步骤名称
         run: |  # 执行Shell命令
-          # 设置版本标签
-          echo "TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version_prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
-          # 设置最新标签
-          echo "TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest_prefix }}latest" >> $GITHUB_ENV
-        # 作用：根据矩阵配置生成两种镜像标签，存储到环境变量中
+          # 设置Docker Hub版本标签
+          echo "DHUB_TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version_prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          # 设置Docker Hub最新标签
+          echo "DHUB_TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest_prefix }}latest" >> $GITHUB_ENV
+          
+          # 设置GitHub Container Registry版本标签
+          echo "GHCR_TAG_VERSION=ghcr.io/${{ github.repository }}:${{ matrix.version_prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
+          # 设置GitHub Container Registry最新标签
+          echo "GHCR_TAG_LATEST=ghcr.io/${{ github.repository }}:${{ matrix.latest_prefix }}latest" >> $GITHUB_ENV
+        # 作用：为两个注册表生成镜像标签，存储到环境变量中
 
-      # 步骤7：打印构建信息（调试用）
+      # 步骤8：打印构建信息（调试用）
       - name: 打印构建信息  # 步骤名称
         run: |  # 执行Shell命令
           echo "======================================"  # 分隔线
           echo "构建类型: ${{ matrix.image-type }}"  # 打印镜像类型
           echo "使用Dockerfile: ${{ matrix.dockerfile }}"  # 打印Dockerfile路径
-          echo "版本标签: ${{ env.TAG_VERSION }}"  # 打印版本标签
-          echo "最新标签: ${{ env.TAG_LATEST }}"  # 打印最新标签
+          echo "Docker Hub版本标签: ${{ env.DHUB_TAG_VERSION }}"  # 打印Docker Hub版本标签
+          echo "Docker Hub最新标签: ${{ env.DHUB_TAG_LATEST }}"  # 打印Docker Hub最新标签
+          echo "GitHub CR版本标签: ${{ env.GHCR_TAG_VERSION }}"  # 打印GitHub CR版本标签
+          echo "GitHub CR最新标签: ${{ env.GHCR_TAG_LATEST }}"  # 打印GitHub CR最新标签
           echo "======================================"  # 分隔线
         # 作用：在日志中显示构建详情，便于调试和验证
 
-      # 步骤8：构建并推送镜像
+      # 步骤9：构建并推送镜像
       - name: 编译并推送镜像  # 步骤名称
         uses: docker/build-push-action@v5  # 使用官方构建推送动作
         with:  # 动作参数
           context: .  # 构建上下文路径（当前目录）
           file: ./${{ matrix.dockerfile }}  # 指定Dockerfile路径（使用矩阵变量）
-          # platforms: linux/amd64  # 构建平台（仅AMD64，构建速度快）
-          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7,linux/arm/v6  # 多平台构建（正式环境使用）
+          platforms: linux/amd64,linux/386,linux/arm64,linux/arm/v7,linux/arm/v6  # 多平台构建
           push: true  # 推送到镜像仓库
-          tags: |  # 要应用的标签列表
-            ${{ env.TAG_VERSION }}  # 版本标签
-            ${{ env.TAG_LATEST }}  # 最新标签
-        # 作用：使用指定的Dockerfile构建镜像，并推送两个标签到Docker Hub
+          tags: |  # 要应用的标签列表（包含两个注册表的标签）
+            ${{ env.DHUB_TAG_VERSION }}
+            ${{ env.DHUB_TAG_LATEST }}
+            ${{ env.GHCR_TAG_VERSION }}
+            ${{ env.GHCR_TAG_LATEST }}
+        # 作用：使用指定的Dockerfile构建镜像，并推送到Docker Hub和GitHub Container Registry
