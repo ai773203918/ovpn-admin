@@ -25,11 +25,11 @@ jobs:  # 定义工作流中的作业
           - image-type: openvpn
             dockerfile: Dockerfile.openvpn
             version_prefix: ''
-            latest_prefix: ''
+            latest_prefix: 'latest'
           - image-type: admin
             dockerfile: Dockerfile.ovpn-admin
             version_prefix: 'admin-'
-            latest_prefix: 'admin-'
+            latest_prefix: 'admin'
     
     steps:  # 定义作业中的步骤
       # 步骤1：检出代码
@@ -84,12 +84,12 @@ jobs:  # 定义工作流中的作业
           # 设置Docker Hub版本标签
           echo "DHUB_TAG_VERSION=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.version_prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
           # 设置Docker Hub最新标签
-          echo "DHUB_TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest_prefix }}latest" >> $GITHUB_ENV
+          echo "DHUB_TAG_LATEST=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ matrix.latest_prefix }}" >> $GITHUB_ENV
           
           # 设置GitHub Container Registry版本标签
           echo "GHCR_TAG_VERSION=ghcr.io/${{ github.repository }}:${{ matrix.version_prefix }}${{ env.TAG_NAME }}" >> $GITHUB_ENV
           # 设置GitHub Container Registry最新标签
-          echo "GHCR_TAG_LATEST=ghcr.io/${{ github.repository }}:${{ matrix.latest_prefix }}latest" >> $GITHUB_ENV
+          echo "GHCR_TAG_LATEST=ghcr.io/${{ github.repository }}:${{ matrix.latest_prefix }}" >> $GITHUB_ENV
         # 作用：为两个注册表生成镜像标签，存储到环境变量中
 
       # 步骤8：打印构建信息（调试用）
