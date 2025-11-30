@@ -1,0 +1,23 @@
+FROM alpine:3.22
+ARG TARGETARCH
+ARG OPENVPN_USER_VERSION=auto
+
+# 安装必要工具并下载openvpn-user
+RUN apk add --update bash openvpn easy-rsa iptables curl wget && \
+    ln -s /usr/share/easy-rsa/easyrsa /usr/local/bin && \
+    if [ "$OPENVPN_USER_VERSION" = "auto" ]; then \
+        LATEST_VERSION=$(curl -s https://api.github.com/repos/pashcovich/openvpn-user/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') || \
+        { echo "获取最新版本失败,使用v1.0.9作为备用版本"; LATEST_VERSION="v1.0.9"; }; \
+    else \
+        LATEST_VERSION="$OPENVPN_USER_VERSION"; \
+    fi && \
+    echo "使用openvpn-user版本: ${LATEST_VERSION}" && \
+    wget https://github.com/pashcovich/openvpn-user/releases/download/${LATEST_VERSION}/openvpn-user-linux-${TARGETARCH}.tar.gz -O - | tar xz -C /usr/local/bin && \
+    rm -rf /tmp/* /var/tmp/* /var/cache/apk/*
+
+# 创建符号链接
+RUN if [ -f "/usr/local/bin/openvpn-user-${TARGETARCH}" ]; then ln -s /usr/local/bin/openvpn-user-${TARGETARCH} /usr/local/bin/openvpn-user; fi
+
+# 复制配置文件并设置权限
+COPY setup/ /etc/openvpn/setup
+RUN chmod +x /etc/openvpn/setup/*
