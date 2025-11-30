@@ -15,7 +15,7 @@ COPY --from=backend-builder /app/ovpn-admin /app
 ARG TARGETARCH
 ARG OPENVPN_USER_VERSION=auto
 # 安装必要工具并下载openvpn-user
-RUN apk add --update bash openvpn easy-rsa iptables curl wget && \
+RUN apk add --update bash easy-rsa openssl openvpn coreutils curl wget && \
     ln -s /usr/share/easy-rsa/easyrsa /usr/local/bin && \
     if [ "$OPENVPN_USER_VERSION" = "auto" ]; then \
         LATEST_VERSION=$(curl -s https://api.github.com/repos/pashcovich/openvpn-user/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') || \
