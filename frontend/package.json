@@ -10,7 +10,7 @@
     "build": "cross-env NODE_ENV=production webpack --progress"
   },
   "dependencies": {
-    "axios": "^1.12.0",
+    "axios": "^1.16.0",
     "bootstrap-vue": "^2.22.0",
     "normalize.css": "^8.0.1",
     "vue": "^2.6.14",
@@ -26,7 +26,7 @@
     "not ie <= 8"
   ],
   "devDependencies": {
-    "@babel/core": "^7.16.5",
+    "@babel/core": "^7.29.6",
     "@babel/plugin-proposal-class-properties": "^7.16.7",
     "@babel/plugin-proposal-json-strings": "^7.16.7",
     "@babel/plugin-syntax-dynamic-import": "^7.8.3",
@@ -38,11 +38,11 @@
     "file-loader": "^6.2.0",
     "node-sass": "^9.0.0",
     "sass-loader": "^16.0.5",
-    "terser-webpack-plugin": "^5.3.0",
+    "terser-webpack-plugin": "^5.3.17",
     "vue-loader": "^17.0.0",
     "vue-template-compiler": "^2.6.14",
-    "webpack": "^5.98.0",
+    "webpack": "^5.105.0",
     "webpack-cli": "^4.9.1",
-    "webpack-dev-server": "^5.2.1"
+    "webpack-dev-server": "^5.2.4"
   }
 }

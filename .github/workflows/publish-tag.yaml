@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -29,7 +29,7 @@ jobs:
         uses: werf/actions/install@v2
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: linux/amd64, linux/arm64, linux/arm/v7, linux/arm/v8
 
@@ -38,7 +38,7 @@ jobs:
         run: werf cr login -u ${{ github.actor }} -p ${{ github.token }} ghcr.io/${{ github.repository }}
 
       - name: Extract Docker metadata
-        uses: docker/metadata-action@v5.9.0
+        uses: docker/metadata-action@v6.1.0
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
 

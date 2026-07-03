@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"embed"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -26,13 +28,18 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/gobuffalo/packr/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 )
+
+//go:embed frontend/static
+var staticFiles embed.FS
+
+//go:embed templates
+var templateFiles embed.FS
 
 const (
 	usernameRegexp         = `^([a-zA-Z0-9_.\-@])+$`
@@ -193,7 +200,6 @@ type OvpnAdmin struct {
 	activeClients          []clientStatus
 	promRegistry           *prometheus.Registry
 	mgmtInterfaces         map[string]string
-	templates              *packr.Box
 	modules                []string
 	mgmtStatusTimeFormat   string
 	createUserMutex        *sync.Mutex
@@ -566,10 +572,8 @@ func main() {
 		go ovpnAdmin.syncWithMaster()
 	}
 
-	ovpnAdmin.templates = packr.New("template", "./templates")
-
-	staticBox := packr.New("static", "./frontend/static")
-	static := CacheControlWrapper(http.FileServer(staticBox))
+	staticFS, _ := fs.Sub(staticFiles, "frontend/static")
+	static := CacheControlWrapper(http.FileServer(http.FS(staticFS)))
 
 	http.Handle(*listenBaseUrl, http.StripPrefix(strings.TrimRight(*listenBaseUrl, "/"), static))
 	http.HandleFunc(*listenBaseUrl+"api/server/settings", ovpnAdmin.serverSettingsHandler)
@@ -650,8 +654,7 @@ func indexTxtParser(txt string) []indexTxtLine {
 		str := strings.Fields(v)
 		if len(str) > 0 {
 			switch {
-			// case strings.HasPrefix(str[0], "E"):
-			case strings.HasPrefix(str[0], "V"):
+			case strings.HasPrefix(str[0], "E"), strings.HasPrefix(str[0], "V"):
 				indexTxt = append(indexTxt, indexTxtLine{Flag: str[0], ExpirationDate: str[1], SerialNumber: str[2], Filename: str[3], DistinguishedName: str[4], Identity: str[4][strings.Index(str[4], "=")+1:]})
 			case strings.HasPrefix(str[0], "R"):
 				indexTxt = append(indexTxt, indexTxtLine{Flag: str[0], ExpirationDate: str[1], RevocationDate: str[2], SerialNumber: str[3], Filename: str[4], DistinguishedName: str[5], Identity: str[5][strings.Index(str[5], "=")+1:]})
@@ -666,11 +669,10 @@ func renderIndexTxt(data []indexTxtLine) string {
 	indexTxt := ""
 	for _, line := range data {
 		switch {
-		case line.Flag == "V":
+		case line.Flag == "V", line.Flag == "E":
 			indexTxt += fmt.Sprintf("%s\t%s\t\t%s\t%s\t%s\n", line.Flag, line.ExpirationDate, line.SerialNumber, line.Filename, line.DistinguishedName)
 		case line.Flag == "R":
 			indexTxt += fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\n", line.Flag, line.ExpirationDate, line.RevocationDate, line.SerialNumber, line.Filename, line.DistinguishedName)
-			// case line.flag == "E":
 		}
 	}
 	return indexTxt
@@ -680,11 +682,11 @@ func (oAdmin *OvpnAdmin) getClientConfigTemplate() *template.Template {
 	if *clientConfigTemplatePath != "" {
 		return template.Must(template.ParseFiles(*clientConfigTemplatePath))
 	} else {
-		clientConfigTpl, clientConfigTplErr := oAdmin.templates.FindString("client.conf.tpl")
+		clientConfigTplBytes, clientConfigTplErr := templateFiles.ReadFile("templates/client.conf.tpl")
 		if clientConfigTplErr != nil {
-			log.Error("clientConfigTpl not found in templates box")
+			log.Errorf("clientConfigTpl not found in embedded templates: %v", clientConfigTplErr)
 		}
-		return template.Must(template.New("client-config").Parse(clientConfigTpl))
+		return template.Must(template.New("client-config").Parse(string(clientConfigTplBytes)))
 	}
 }
 
@@ -744,11 +746,11 @@ func (oAdmin *OvpnAdmin) getCcdTemplate() *template.Template {
 	if *ccdTemplatePath != "" {
 		return template.Must(template.ParseFiles(*ccdTemplatePath))
 	} else {
-		ccdTpl, ccdTplErr := oAdmin.templates.FindString("ccd.tpl")
+		ccdTplBytes, ccdTplErr := templateFiles.ReadFile("templates/ccd.tpl")
 		if ccdTplErr != nil {
-			log.Errorf("ccdTpl not found in templates box")
+			log.Errorf("ccdTpl not found in embedded templates: %v", ccdTplErr)
 		}
-		return template.Must(template.New("ccd").Parse(ccdTpl))
+		return template.Must(template.New("ccd").Parse(string(ccdTplBytes)))
 	}
 }
 
@@ -975,7 +977,9 @@ func (oAdmin *OvpnAdmin) usersList() []OpenvpnClient {
 			ovpnClientCertificateExpire.WithLabelValues(line.Identity).Set(float64((parseDateToUnix(indexTxtDateLayout, line.ExpirationDate) - apochNow) / 3600 / 24))
 
 			if (parseDateToUnix(indexTxtDateLayout, line.ExpirationDate) - apochNow) < 0 {
-				ovpnClient.AccountStatus = "Expired"
+				if ovpnClient.AccountStatus != "Revoked" {
+					ovpnClient.AccountStatus = "Expired"
+				}
 			}
 			ovpnClient.Connections = 0
 
@@ -1039,6 +1043,7 @@ func (oAdmin *OvpnAdmin) userCreate(username, password string) (bool, string) {
 		err := app.easyrsaBuildClient(username)
 		if err != nil {
 			log.Error(err)
+			return false, err.Error()
 		}
 	} else {
 		o := runBash(fmt.Sprintf("cd %s && %s --batch build-client-full %s nopass 1>/dev/null", *easyrsaDirPath, *easyrsaBinPath, username))
